@@ -1,0 +1,9 @@
+{
+  // Cloudflare Workers project (Workers Builds): pushing to main deploys.
+  // Static site with no server-side logic - site/ is the finished output.
+  "name": "bermuda-peers",
+  "compatibility_date": "2026-11-05",
+  "assets": {
+    "directory": "./site"
+  }
+}

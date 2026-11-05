@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bermuda Insurer Peers</title>
+<meta name="description" content="Asset portfolios of Bermuda life and long-term insurers compared by backing, from their year-end 2025 BMA Asset and Liability Statements.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script src="vendor/d3.min.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<main>
+<div class="bx">
+  <header class="bx-head">
+    <h1 class="bx-title">Bermuda insurer peer comparison</h1>
+    <p class="bx-lead">Asset portfolios of <b data-draw="val" data-fmt="int" data-source="totals" data-field="companies">—</b> Bermuda life and long-term insurers, from their year-end 2025 Asset and Liability Statements. Together they hold <b data-draw="val" data-fmt="usd" data-source="totals" data-field="invested">—</b> of invested assets.</p>
+  </header>
+
+  <nav class="bx-tabs" aria-label="Pages">
+    <button data-tab="backing" aria-pressed="true">By backing</button>
+    <button data-tab="companies" aria-pressed="false">All companies</button>
+    <button data-tab="company" aria-pressed="false">Company vs peers</button>
+    <button data-tab="compare" aria-pressed="false">Side by side</button>
+    <button data-tab="about" aria-pressed="false">About the data</button>
+  </nav>
+  <p class="bx-care" id="load-error" hidden>The data could not be loaded. Check your connection and reload the page.</p>
+
+  <section class="bx-page" id="backing" data-page="backing">
+    <p class="bx-take">The median PE or alternative-backed company holds <b data-draw="val" data-fmt="pct" data-source="by_backing" data-field="illiquid" data-where="backing=PE / alternative">—</b> of invested assets in private and illiquid holdings, against <b data-draw="val" data-fmt="pct" data-source="by_backing" data-field="illiquid" data-where="backing=Traditional insurer">—</b> at traditional insurers.</p>
+
+    <div class="bx-card" id="backing-table">
+      <h2>How the groups differ</h2>
+      <p class="bx-note">Medians count each company equally. Only legal entities with at least <span data-draw="minsize">—</span> invested are included, so groups of entities are not counted twice.</p>
+      <div class="bx-wide"><table class="bx-table" data-draw="backing-table" data-source="by_backing" data-row-key="backing"></table></div>
+    </div>
+
+    <div class="bx-grid">
+      <div class="bx-card" id="mix-chart">
+        <h2>Asset mix by backing</h2>
+        <p class="bx-note">Share of invested assets, weighted by dollars, so the largest companies dominate each bar.</p>
+        <div class="bx-chart" data-draw="mix" data-source="by_backing"></div>
+        <div class="bx-legend" data-draw="mix-legend" data-source="by_backing"></div>
+      </div>
+      <div class="bx-card" id="strip-chart">
+        <h2>Spread of companies within each group</h2>
+        <p class="bx-note">Each dot is one company and each tick is the group's median. Click a dot to open the company.</p>
+        <div class="bx-controls">
+          <label class="bx-field">Measure
+            <select class="dash-select" id="strip-metric" data-state="strip">
+              <option value="illiquid">Private and illiquid</option><option value="below_ig">Below investment grade</option><option value="priv">Private credit and loans</option><option value="struct">Structured credit</option><option value="mort">Mortgages</option><option value="eq">Equity and alternatives</option><option value="corp">Corporate bonds</option><option value="gov">Government and agency</option><option value="affil">Affiliated</option><option value="top10">Top 10 issuers</option><option value="lvl3">Level 3</option><option value="yield">Market yield</option><option value="asset_dur">Asset duration</option><option value="gap">Duration gap</option><option value="cover">Invested / net reserves</option>
+            </select></label>
+        </div>
+        <div class="bx-chart" data-draw="strip" data-source="peers peer_stats"></div>
+      </div>
+    </div>
+    <p class="bx-note">Backing is my reading of public sources, not something the filings report. It shows the current owner, which can differ from the owner when the year-end 2025 portfolio was built. The About the data page lists every tag with its confidence and source.</p>
+  </section>
+
+  <section class="bx-page" id="companies" data-page="companies" hidden>
+    <div class="bx-card">
+      <div class="bx-controls">
+        <label class="bx-field">View
+          <select class="dash-select" id="f-level" data-state="level"><option value="entity">Legal entities</option><option value="group">Groups</option></select></label>
+        <label class="bx-field">Backing
+          <select class="dash-select" id="f-backing" data-state="backing"><option value="all">All</option><option value="PE / alternative">PE / alternative</option><option value="Hybrid">Hybrid (insurer + alternative)</option><option value="alt+hybrid">PE / alternative + hybrid</option><option value="Traditional insurer">Traditional insurer</option><option value="Bank / other">Bank / other</option><option value="Unknown">Unknown</option></select></label>
+        <label class="bx-field">Class
+          <select class="dash-select" id="f-class" data-state="cls"><option value="all">All</option><option value="Class C">C</option><option value="Class D">D</option><option value="Class E">E</option></select></label>
+        <label class="bx-field">Accounting
+          <select class="dash-select" id="f-basis" data-state="basis"><option value="all">All</option><option value="US GAAP">US GAAP</option><option value="IFRS">IFRS</option><option value="Not stated">Not stated</option></select></label>
+        <label class="bx-field">Size (invested)
+          <select class="dash-select" id="f-size" data-state="size"><option value="all">All sizes</option><option value="lt1">Under $1B</option><option value="1-5">$1B to $5B</option><option value="5-25">$5B to $25B</option><option value="25+">Over $25B</option></select></label>
+        <label class="bx-field">Measures
+          <select class="dash-select" id="f-view" data-state="view"><option value="Overview">Overview</option><option value="Allocation">Allocation</option><option value="Credit">Credit</option><option value="Liquidity">Liquidity and duration</option><option value="Concentration">Concentration</option><option value="Mortgages">Mortgages</option></select></label>
+        <label class="bx-field">Search
+          <input type="search" id="f-search" placeholder="Company name" aria-label="Search company name"></label>
+        <label class="bx-check"><input type="checkbox" id="f-min" checked> Hide under <span data-draw="minsize">—</span></label>
+        <span class="bx-count"><span data-draw="shown" data-source="peers">—</span> shown</span>
+      </div>
+    </div>
+    <div class="bx-card" id="league">
+      <h2>All companies</h2>
+      <p class="bx-note">Click a column to sort, or a legal entity to see it against its peers. The last row is the median of what is shown.</p>
+      <div class="bx-scroll"><table class="bx-table" data-draw="league" data-source="peers" data-row-key="unit_id"></table></div>
+    </div>
+    <div class="bx-card" id="map">
+      <h2>Peer map</h2>
+      <p class="bx-note">Follows the filters above. Each dot is one company or group, colored by backing.</p>
+      <div class="bx-controls">
+        <label class="bx-field">Across
+          <select class="dash-select" id="map-x" data-state="mapX"><option value="below_ig">Below investment grade</option><option value="illiquid">Private and illiquid</option><option value="priv">Private credit and loans</option><option value="struct">Structured credit</option><option value="mort">Mortgages</option><option value="affil">Affiliated</option><option value="top10">Top 10 issuers</option><option value="asset_dur">Asset duration</option></select></label>
+        <label class="bx-field">Up
+          <select class="dash-select" id="map-y" data-state="mapY"><option value="yield">Market yield</option><option value="illiquid">Private and illiquid</option><option value="below_ig">Below investment grade</option><option value="gap">Duration gap</option><option value="cover">Invested / net reserves</option><option value="top10">Top 10 issuers</option></select></label>
+      </div>
+      <div class="bx-chart bx-chart-tall" data-draw="map" data-source="peers"></div>
+      <div class="bx-legend" data-draw="backing-legend"></div>
+    </div>
+  </section>
+
+  <section class="bx-page" id="company" data-page="company" hidden>
+    <div class="bx-card">
+      <div class="bx-controls">
+        <label class="bx-field">Company
+          <select class="dash-select" id="co-pick" data-draw="co-pick" data-source="peers"></select></label>
+        <label class="bx-field">Compare with
+          <select class="dash-select" id="co-peers" data-state="peerSet"><option value="same">Same backing</option><option value="All">All companies</option></select></label>
+        <label class="bx-field">Peer average
+          <select class="dash-select" id="co-stat" data-state="stat"><option value="median">Median</option><option value="mean">Mean</option></select></label>
+      </div>
+    </div>
+    <div data-draw="co-head" data-source="peers"></div>
+    <div class="bx-grid">
+      <div class="bx-card" id="co-peers-card">
+        <h2>Where it sits against peers</h2>
+        <p class="bx-note">The shaded band is the middle half of peers, the tick is their median or mean (as chosen above) and the dot is this company. Peers are legal entities with at least <span data-draw="minsize">—</span> invested, and include the company itself if it qualifies.</p>
+        <div class="bx-wide"><table class="bx-table" data-draw="co-strip" data-source="peers peer_stats"></table></div>
+      </div>
+      <div class="bx-card" id="co-issuers">
+        <h2>Largest issuers</h2>
+        <p class="bx-note">The ten largest names in the filing. Share is of invested assets.</p>
+        <div class="bx-wide"><table class="bx-table" data-draw="co-issuers" data-source="top_issuers" data-row-key="unit_id,label"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bx-page" id="compare" data-page="compare" hidden>
+    <div class="bx-card">
+      <p class="bx-note">Pick up to ten: backing groups, all companies together, company groups or single legal entities. Backing groups and All companies cover legal entities with at least <span data-draw="minsize">—</span> invested. For them, invested assets and net reserves are totals, and every other row is the median or mean company.</p>
+      <div class="bx-controls" data-draw="sbs-picks" data-source="peers"></div>
+      <div class="bx-controls">
+        <label class="bx-field">Backing groups show
+          <select class="dash-select" id="sbs-stat" data-state="stat"><option value="median">Median</option><option value="mean">Mean</option></select></label>
+      </div>
+    </div>
+    <div class="bx-card" id="sbs">
+      <h2>Side by side</h2>
+      <div class="bx-wide"><table class="bx-table bx-sbs" data-draw="sbs" data-source="peers group_stats"></table></div>
+    </div>
+  </section>
+
+  <section class="bx-page" id="about" data-page="about" hidden>
+    <div class="bx-card">
+      <h2>How the numbers are built</h2>
+      <ul class="bx-list">
+        <li><b>Source.</b> Year-end 2025 Asset and Liability Statements published by the Bermuda Monetary Authority, covering <span data-draw="val" data-fmt="int" data-source="totals" data-field="positions">—</span> reported positions. This page shows summaries only. The position-level data stays in the local database.</li>
+        <li><b>Invested assets</b> are the base for every percentage: bonds and loans, structured assets, mortgages and investment items in Other Assets. Separate accounts, derivatives, reinsurance assets, deferred acquisition costs, tax and receivables are excluded.</li>
+        <li><b>Currency.</b> Amounts are in US dollars at the reporting-date rate. Market value is used as filed, with book value or loan balance only where market value is blank.</li>
+        <li><b>Units.</b> Some filers report in thousands or millions without always saying so. Where the filing is unclear the multiplier was inferred, and the company carries a data note.</li>
+        <li><b>Groups</b> add legal entities together. Business reinsured between entities is not removed, so group totals can double count.</li>
+        <li><b>Credit.</b> Below investment grade means BSCR classes 5 to 8, where 0 is government and 8 the lowest.</li>
+        <li><b>Accounting.</b> Filers use US GAAP or IFRS. Reserves are not adjusted between the two, so reserve ratios compare less cleanly across them.</li>
+        <li><b>Backing</b> was researched from public sources in November 2026 and is not in the filings. Many tags rest on the company name alone, as the source column says. Check a tag before relying on it.</li>
+        <li><b>Hybrid</b> means an insurer and an alternative manager or outside investors back the company together.</li>
+      </ul>
+    </div>
+    <div class="bx-card" id="tags">
+      <h2>Backing tags</h2>
+      <p class="bx-note">One row per legal entity, largest first. Tell the page's owner if a tag is wrong.</p>
+      <div class="bx-scroll"><table class="bx-table" data-draw="tags" data-source="peers" data-row-key="unit_id"></table></div>
+    </div>
+  </section>
+</div>
+<footer class="bx-foot">
+  <p class="bx-note">Built from public Bermuda Monetary Authority filings. Summaries only: no position-level data is published here. Not investment advice.</p>
+</footer>
+</main>
+</body>
+</html>
