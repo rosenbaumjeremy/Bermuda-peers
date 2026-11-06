@@ -67,8 +67,9 @@
           <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
         <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
         <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
+        <label class="bx-check"><input type="checkbox" data-flag="rOther" checked> Include rated Other Assets</label>
       </div>
-      <p class="bx-note">BSCR ratings run from 0 (government) to 8 (lowest); 5 to 8 is below investment grade. Shares are of the chosen sector's invested assets.</p>
+      <p class="bx-note">BSCR ratings run from 0 (government) to 8 (lowest); 5 to 8 is below investment grade. The split covers the Bonds and Loans and Structured Assets schedules, plus Other Assets items that carry a BSCR rating (untick to leave those out). Mortgages, derivatives, separate accounts and unrated Other Assets are not included. Shares are of the chosen sector within that scope.</p>
     </div>
     <div class="bx-card" id="r-backing-card">
         <h2>Rating split by backing</h2>
@@ -164,8 +165,9 @@
           <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
         <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
         <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
+        <label class="bx-check"><input type="checkbox" data-flag="rOther" checked> Include rated Other Assets</label>
       </div>
-      <p class="bx-note">Share of the chosen sector in each rating. Peers are the same set as above; their bar is weighted by dollars, the table column is the peer median or mean company, which need not add up to 100%.</p>
+      <p class="bx-note">Bonds and Loans and Structured Assets, plus rated Other Assets if ticked; mortgages, derivatives and separate accounts are left out. Share of the chosen sector in each rating. Peers are the same set as above; their bar is weighted by dollars, the table column is the peer median or mean company, which need not add up to 100%.</p>
       <div class="bx-chart bx-chart-short" data-draw="co-rbars" data-source="peers ratings"></div>
       <div class="bx-legend" data-draw="r-legend"></div>
       <div class="bx-wide"><table class="bx-table" data-draw="co-rtable" data-source="peers ratings"></table></div>

@@ -72,7 +72,7 @@ const STRIP_ROWS = [['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq'
 const SBS_ROWS = [['Size', ['invested', 'net_res', 'cover']], ['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq', 'cash', 'other']], ['Credit', ['below_ig', 'unrated', 'w_rating', 'yield']], ['Liquidity and duration', ['illiquid', 'lvl3', 'asset_dur', 'res_dur', 'gap', 'deriv']], ['Concentration', ['top10', 'affil', 'non_usd', 'non_us', 'trust']], ['Mortgages', ['cml_ltv', 'cml_office', 'cml_delinq', 'rml_delinq']]];
 const SIZE = { all: [0, Infinity], lt1: [0, 1e9], '1-5': [1e9, 5e9], '5-25': [5e9, 25e9], '25+': [25e9, Infinity] };
 
-const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null, rSector: 'all', r03: false, r58: false, rSort: 'amt', rDir: -1 };
+const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null, rSector: 'all', r03: false, r58: false, rOther: true, rSort: 'amt', rDir: -1 };
 
 // BSCR rating split. data/ratings.json holds, per unit and asset group, dollars in ratings 0..8 and Unrated.
 const RATING_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', 'Unrated'];
@@ -90,7 +90,9 @@ const ratingsData = () => { const d = dash.data('ratings'); return d.status === 
 function ratingVec(uid) {
   const r = ratingsData()?.[uid];
   if (!r) return null;
-  const groups = S.rSector === 'all' ? Object.values(r) : [r[S.rSector]].filter(Boolean);
+  // keys are asset groups; "oa:<group>" holds the rated items from Other Assets
+  const groups = Object.entries(r).filter(([k]) => (S.rOther || !k.startsWith('oa:'))
+    && (S.rSector === 'all' || k.replace(/^oa:/, '') === S.rSector)).map(([, v]) => v);
   if (!groups.length) return null;
   const v = RATING_LABELS.map((_, i) => groups.reduce((s, g) => s + g[i], 0));
   return v.reduce((s, x) => s + x, 0) > 0 ? v : null;
@@ -98,7 +100,13 @@ function ratingVec(uid) {
 const addVec = (a, b) => a.map((x, i) => x + b[i]);
 // Shares by bucket from a 10-number dollar vector.
 const ratingShares = (v, buckets) => { const t = v.reduce((s, x) => s + x, 0); return buckets.map((b) => (t > 0 ? b.idx.reduce((s, i) => s + v[i], 0) / t : null)); };
-const sectorLabel = () => (S.rSector === 'all' ? 'All invested assets' : GROUPS.find(([k]) => k === S.rSector)?.[1] || S.rSector);
+const sectorLabel = () => (S.rSector === 'all' ? 'All rated schedules' : GROUPS.find(([k]) => k === S.rSector)?.[1] || S.rSector);
+// Asset groups that appear in the rating data (mortgage schedules are not part of it).
+const ratingGroups = () => {
+  const seen = new Set();
+  for (const u of Object.values(ratingsData() || {})) for (const k of Object.keys(u)) seen.add(k.replace(/^oa:/, ''));
+  return GROUPS.filter(([k]) => seen.has(k));
+};
 
 // Horizontal 100% bars, one per row: rows are {label, shares, sub}.
 function ratingBars(box, rows, buckets) {
@@ -582,7 +590,7 @@ dash.draw('tags', (t) => {
 });
 
 dash.draw('r-sector', (sel) => {
-  sel.replaceChildren(new Option('All invested assets', 'all'), ...GROUPS.map(([k, label]) => new Option(label, k)));
+  sel.replaceChildren(new Option('All rated schedules', 'all'), ...ratingGroups().map(([k, label]) => new Option(label, k)));
   sel.value = S.rSector;
 });
 dash.draw('r-legend', (n) => {
