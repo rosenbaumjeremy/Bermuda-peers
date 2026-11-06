@@ -72,7 +72,68 @@ const STRIP_ROWS = [['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq'
 const SBS_ROWS = [['Size', ['invested', 'net_res', 'cover']], ['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq', 'cash', 'other']], ['Credit', ['below_ig', 'unrated', 'w_rating', 'yield']], ['Liquidity and duration', ['illiquid', 'lvl3', 'asset_dur', 'res_dur', 'gap', 'deriv']], ['Concentration', ['top10', 'affil', 'non_usd', 'non_us', 'trust']], ['Mortgages', ['cml_ltv', 'cml_office', 'cml_delinq', 'rml_delinq']]];
 const SIZE = { all: [0, Infinity], lt1: [0, 1e9], '1-5': [1e9, 5e9], '5-25': [5e9, 25e9], '25+': [25e9, Infinity] };
 
-const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null };
+const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null, rSector: 'all', r03: false, r58: false, rSort: 'amt', rDir: -1 };
+
+// BSCR rating split. data/ratings.json holds, per unit and asset group, dollars in ratings 0..8 and Unrated.
+const RATING_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', 'Unrated'];
+function ratingBuckets() {
+  const one = (i) => ({ key: RATING_LABELS[i], label: i === 9 ? 'Unrated' : `BSCR ${i}`, idx: [i], color: `var(--r${i === 9 ? 'u' : i})` });
+  const out = [];
+  if (S.r03) out.push({ key: '0-3', label: 'BSCR 0–3', idx: [0, 1, 2, 3], color: 'var(--r1)' }); else [0, 1, 2, 3].forEach((i) => out.push(one(i)));
+  out.push(one(4));
+  if (S.r58) out.push({ key: '5-8', label: 'BSCR 5–8', idx: [5, 6, 7, 8], color: 'var(--r6)' }); else [5, 6, 7, 8].forEach((i) => out.push(one(i)));
+  out.push(one(9));
+  return out;
+}
+const ratingsData = () => { const d = dash.data('ratings'); return d.status === 'ok' ? d.data : null; };
+// Dollars by rating (10 numbers) for one unit in the chosen sector, or null if it holds nothing there.
+function ratingVec(uid) {
+  const r = ratingsData()?.[uid];
+  if (!r) return null;
+  const groups = S.rSector === 'all' ? Object.values(r) : [r[S.rSector]].filter(Boolean);
+  if (!groups.length) return null;
+  const v = RATING_LABELS.map((_, i) => groups.reduce((s, g) => s + g[i], 0));
+  return v.reduce((s, x) => s + x, 0) > 0 ? v : null;
+}
+const addVec = (a, b) => a.map((x, i) => x + b[i]);
+// Shares by bucket from a 10-number dollar vector.
+const ratingShares = (v, buckets) => { const t = v.reduce((s, x) => s + x, 0); return buckets.map((b) => (t > 0 ? b.idx.reduce((s, i) => s + v[i], 0) / t : null)); };
+const sectorLabel = () => (S.rSector === 'all' ? 'All invested assets' : GROUPS.find(([k]) => k === S.rSector)?.[1] || S.rSector);
+
+// Horizontal 100% bars, one per row: rows are {label, shares, sub}.
+function ratingBars(box, rows, buckets) {
+  box.replaceChildren();
+  if (!rows.length) { box.append(el('p', { class: 'bx-note' }, 'Nothing to show for this sector.')); return; }
+  const w = Math.max(box.clientWidth, 260);
+  const probe = d3.select(box).append('svg');
+  const labelW = laneLabels(probe, rows.map((r) => r.label));
+  probe.remove();
+  // On narrow screens, or with long names, each label sits above its bar instead of beside it.
+  const above = labelW > w * 0.4;
+  const lane = above ? 46 : 40, top = above ? 18 : 0, h = rows.length * lane + 24;
+  const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${w} ${h}`).attr('role', 'img').attr('aria-label', `BSCR rating split, ${sectorLabel()}`);
+  const left = above ? 4 : labelW;
+  const x = d3.scaleLinear([0, 1], [left, w - 8]);
+  for (const t of w < 460 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1]) {
+    svg.append('line').attr('x1', x(t)).attr('x2', x(t)).attr('y1', 0).attr('y2', h - 20).style('stroke', 'var(--cds-chart-grid)');
+    svg.append('text').attr('x', x(t)).attr('y', h - 6).attr('text-anchor', t === 1 ? 'end' : t === 0 ? 'start' : 'middle').text(d3.format('.0%')(t));
+  }
+  const tip = tooltip(box);
+  rows.forEach((r, i) => {
+    const y = i * lane + 8 + top;
+    if (above) svg.append('text').attr('x', left).attr('y', y - 5).text(r.label);
+    else svg.append('text').attr('x', left - 10).attr('y', y + 14).attr('text-anchor', 'end').text(r.label);
+    let acc = 0;
+    buckets.forEach((b, bi) => {
+      const v = Math.max(r.shares[bi] || 0, 0);
+      if (v > 0) {
+        svg.append('rect').attr('x', x(acc)).attr('y', y).attr('width', Math.max(x(acc + v) - x(acc) - 1, 1)).attr('height', 20).attr('rx', 2).style('fill', b.color)
+          .on('pointermove', (ev) => tip.show(ev, `${r.label}${r.sub ? ` (${r.sub})` : ''}\n${b.label}: ${fPct(r.shares[bi])}`)).on('pointerleave', () => tip.hide());
+      }
+      acc += v;
+    });
+  });
+}
 const SBS_MAX = 10;
 const SETS = ['All', ...BACKINGS];
 const setLabel = (s) => (s === 'All' ? 'All companies' : `All ${s}`);
@@ -129,14 +190,15 @@ function openTab(name) {
   for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
   dash.setLink(name);
   // charts size themselves to their box, which has no width while its tab is hidden
-  ['mix', 'strip', 'map'].forEach((n) => dash.draw(n));
+  ['mix', 'strip', 'map', 'r-bars', 'co-rbars'].forEach((n) => dash.draw(n));
 }
 function openCompany(id) {
   S.company = id;
   openTab('company');
-  for (const n of ['co-pick', 'co-head', 'co-strip', 'co-issuers']) dash.draw(n);
+  for (const n of ['co-pick', 'co-head', 'co-strip', 'co-issuers', 'co-rbars', 'co-rtable']) dash.draw(n);
 }
-const REDRAW = ['league', 'map', 'shown', 'strip', 'co-strip', 'sbs'];
+const RATING_DRAWS = ['r-sector', 'r-legend', 'r-bars', 'r-backing', 'r-league', 'co-rbars', 'co-rtable'];
+const REDRAW = ['league', 'map', 'shown', 'strip', 'co-strip', 'sbs', ...RATING_DRAWS];
 for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => openTab(b.dataset.tab));
 for (const c of document.querySelectorAll('[data-state]')) c.addEventListener('change', () => {
   const k = c.dataset.state;
@@ -145,7 +207,13 @@ for (const c of document.querySelectorAll('[data-state]')) c.addEventListener('c
   REDRAW.forEach((n) => dash.draw(n));
 });
 for (const c of document.querySelectorAll('#f-search')) c.addEventListener('input', () => { S.q = c.value; ['league', 'map', 'shown'].forEach((n) => dash.draw(n)); });
-for (const c of document.querySelectorAll('#f-min')) c.addEventListener('change', () => { S.min = c.checked; ['league', 'map', 'shown'].forEach((n) => dash.draw(n)); });
+// Checkboxes: data-flag names a true/false setting; every box with the same flag stays in step.
+for (const c of document.querySelectorAll('[data-flag]')) c.addEventListener('change', () => {
+  const k = c.dataset.flag;
+  S[k] = c.checked;
+  for (const o of document.querySelectorAll(`[data-flag="${k}"]`)) o.checked = c.checked;
+  REDRAW.forEach((n) => dash.draw(n));
+});
 const opening = location.hash.slice(1);
 if (document.querySelector(`[data-tab="${CSS.escape(opening)}"]`)) openTab(opening);
 
@@ -513,6 +581,120 @@ dash.draw('tags', (t) => {
   );
 });
 
+dash.draw('r-sector', (sel) => {
+  sel.replaceChildren(new Option('All invested assets', 'all'), ...GROUPS.map(([k, label]) => new Option(label, k)));
+  sel.value = S.rSector;
+});
+dash.draw('r-legend', (n) => {
+  n.replaceChildren(...ratingBuckets().map((b) => el('span', null, el('i', { style: `background:${b.color}` }), b.label)));
+});
+
+// Dollar-weighted split for each backing group and for all companies.
+function backingSplits() {
+  const rows = peers();
+  if (!rows || !ratingsData()) return null;
+  const base = rows.filter((u) => u.level === 'entity' && (u.invested || 0) >= MIN_SIZE);
+  return [...BACKINGS, 'All companies'].map((b) => {
+    const members = b === 'All companies' ? base : base.filter((u) => u.backing === b);
+    let v = RATING_LABELS.map(() => 0), n = 0;
+    for (const u of members) { const x = ratingVec(u.unit_id); if (x) { v = addVec(v, x); n += 1; } }
+    return { backing: b, n, v, amt: v.reduce((s, x) => s + x, 0) };
+  });
+}
+
+dash.draw('r-bars', (box) => {
+  const sp = backingSplits();
+  if (!sp) { box.replaceChildren(); return; }
+  const buckets = ratingBuckets();
+  ratingBars(box, sp.filter((r) => r.n && r.backing !== 'Unknown').map((r) => ({ label: r.backing, sub: `${r.n} companies, ${fUsd(r.amt)}`, shares: ratingShares(r.v, buckets) })), buckets);
+});
+
+dash.draw('r-backing', (t) => {
+  const sp = backingSplits();
+  if (!sp) { t.replaceChildren(); return; }
+  const buckets = ratingBuckets();
+  t.replaceChildren(
+    el('thead', null, el('tr', null, el('th', null, 'Backing'), el('th', { class: 'n' }, 'Companies'), el('th', { class: 'n' }, 'Amount'), ...buckets.map((b) => el('th', { class: 'n' }, b.label)))),
+    el('tbody', null, ...sp.map((r) => {
+      const sh = ratingShares(r.v, buckets);
+      return el('tr', { class: r.backing === 'All companies' ? 'sum' : null }, el('td', null, r.backing), el('td', { class: 'n' }, fInt(r.n)), el('td', { class: 'n' }, r.n ? fUsd(r.amt) : '–'),
+        ...sh.map((s) => el('td', { class: 'n' }, r.n ? fPct(s) : '–')));
+    })),
+  );
+});
+
+dash.draw('r-league', (t) => {
+  if (!peers() || !ratingsData()) { t.replaceChildren(); return; }
+  const buckets = ratingBuckets();
+  // this table follows only the view, backing and size-floor settings
+  const base = peers().filter((u) => u.level === S.level && (!S.min || (u.invested || 0) >= MIN_SIZE)
+    && (S.backing === 'alt+hybrid' ? u.backing.includes('PE / alternative') || u.backing.includes('Hybrid') : S.backing === 'all' || u.backing.includes(S.backing)));
+  const rows = base.map((u) => {
+    const v = ratingVec(u.unit_id);
+    if (!v) return null;
+    const sh = ratingShares(v, buckets), r = { u, amt: v.reduce((s, x) => s + x, 0) };
+    buckets.forEach((b, i) => { r[`b:${b.key}`] = sh[i]; });
+    return r;
+  }).filter(Boolean);
+  if (S.rSort !== 'name' && S.rSort !== 'amt' && !buckets.some((b) => `b:${b.key}` === S.rSort)) S.rSort = 'amt';
+  rows.sort((a, b) => (S.rSort === 'name' ? S.rDir * a.u.name.localeCompare(b.u.name) : S.rDir * ((a[S.rSort] ?? -1) - (b[S.rSort] ?? -1))));
+  const th = (key, label, cls) => {
+    const b = el('button', { type: 'button' }, label + (S.rSort === key ? (S.rDir > 0 ? ' ↑' : ' ↓') : ''));
+    b.addEventListener('click', () => { if (S.rSort === key) S.rDir = -S.rDir; else { S.rSort = key; S.rDir = key === 'name' ? 1 : -1; } dash.draw('r-league'); });
+    return el('th', { class: cls, 'aria-sort': S.rSort === key ? (S.rDir > 0 ? 'ascending' : 'descending') : 'none' }, b);
+  };
+  const body = rows.map((r) => {
+    const tr = el('tr', { 'data-key': r.u.unit_id, class: r.u.level === 'entity' ? 'go' : null },
+      el('td', { class: 'nm' }, r.u.name), el('td', null, r.u.backing), el('td', { class: 'n' }, fUsd(r.amt)), ...buckets.map((b) => el('td', { class: 'n' }, fPct(r[`b:${b.key}`]))));
+    if (r.u.level === 'entity') tr.addEventListener('click', () => openCompany(r.u.unit_id));
+    return tr;
+  });
+  const sum = el('tr', { class: 'sum' }, el('td', null, `Median of ${fInt(rows.length)} shown`), el('td'), el('td', { class: 'n' }, fUsd(median(rows.map((r) => r.amt)))),
+    ...buckets.map((b) => el('td', { class: 'n' }, fPct(median(rows.map((r) => r[`b:${b.key}`]))))));
+  t.replaceChildren(
+    el('thead', null, el('tr', null, th('name', S.level === 'group' ? 'Group' : 'Company'), el('th', null, 'Backing'), th('amt', sectorLabel(), 'n'), ...buckets.map((b) => th(`b:${b.key}`, b.label, 'n')))),
+    el('tbody', null, ...body, sum),
+  );
+});
+
+// Company page: the company's split against its peer set (same backing or all).
+function companyRatingPeers(c) {
+  const set = S.peerSet === 'same' ? c.backing : 'All';
+  const peersList = (peers() || []).filter((u) => u.level === 'entity' && (u.invested || 0) >= MIN_SIZE && (set === 'All' || u.backing === set));
+  return { set, vecs: peersList.map((u) => ratingVec(u.unit_id)).filter(Boolean) };
+}
+
+dash.draw('co-rbars', (box) => {
+  const c = currentCompany();
+  if (!c || !ratingsData()) { box.replaceChildren(); return; }
+  const buckets = ratingBuckets(), mine = ratingVec(c.unit_id), { set, vecs } = companyRatingPeers(c);
+  const rows = [];
+  if (mine) rows.push({ label: c.name, sub: fUsd(mine.reduce((s, x) => s + x, 0)), shares: ratingShares(mine, buckets) });
+  if (vecs.length) rows.push({ label: set === 'All' ? 'All peers' : `${set} peers`, sub: `${vecs.length} companies, weighted by dollars`, shares: ratingShares(vecs.reduce(addVec), buckets) });
+  ratingBars(box, rows, buckets);
+  if (!mine) box.prepend(el('p', { class: 'bx-note' }, `${c.name} holds nothing in ${sectorLabel().toLowerCase()}.`));
+});
+
+dash.draw('co-rtable', (t) => {
+  const c = currentCompany();
+  if (!c || !ratingsData()) { t.replaceChildren(); return; }
+  const buckets = ratingBuckets(), mine = ratingVec(c.unit_id), { set, vecs } = companyRatingPeers(c);
+  const stat = S.stat === 'mean' ? 'mean' : 'median';
+  const mean = (a) => { const v = a.filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  const peerShares = vecs.map((v) => ratingShares(v, buckets));
+  const mineSh = mine ? ratingShares(mine, buckets) : buckets.map(() => null);
+  const mineAmt = mine;
+  const statLabel = stat === 'mean' ? 'Mean' : 'Median';
+  t.replaceChildren(
+    el('thead', null, el('tr', null, el('th', null, 'Rating'), el('th', { class: 'n' }, 'Amount'), el('th', { class: 'n' }, 'Company'), el('th', { class: 'n' }, set === 'All' ? `${statLabel}, all` : `${statLabel}, ${set}`))),
+    el('tbody', null, ...buckets.map((b, i) => el('tr', null,
+      el('td', null, el('i', { class: 'bx-swatch', style: `background:${b.color}` }), b.label),
+      el('td', { class: 'n' }, mineAmt ? fUsd(b.idx.reduce((s, j) => s + mineAmt[j], 0)) : '–'),
+      el('td', { class: 'n' }, fPct(mineSh[i])),
+      el('td', { class: 'n' }, fPct((stat === 'mean' ? mean : median)(peerShares.map((p) => p[i]))))))),
+  );
+});
+
 // Charts are drawn to the width of their box, so draw them again when it changes.
 let resizeTimer;
 let lastWidth = window.innerWidth;
@@ -520,11 +702,11 @@ window.addEventListener('resize', () => {
   if (window.innerWidth === lastWidth) return;
   lastWidth = window.innerWidth;
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => ['mix', 'strip', 'map'].forEach((n) => dash.draw(n)), 150);
+  resizeTimer = setTimeout(() => ['mix', 'strip', 'map', 'r-bars', 'co-rbars'].forEach((n) => dash.draw(n)), 150);
 });
 
 dash.drawAll();
-dash.load({ peers: 'data/peers.json', top_issuers: 'data/top_issuers.json' })
+dash.load({ peers: 'data/peers.json', top_issuers: 'data/top_issuers.json', ratings: 'data/ratings.json' })
   .then(() => dash.drawAll())
   .catch(() => {
     const p = document.getElementById('load-error');

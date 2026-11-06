@@ -21,6 +21,7 @@
 
   <nav class="bx-tabs" aria-label="Pages">
     <button data-tab="backing" aria-pressed="true">By backing</button>
+    <button data-tab="ratings" aria-pressed="false">BSCR ratings</button>
     <button data-tab="companies" aria-pressed="false">All companies</button>
     <button data-tab="company" aria-pressed="false">Company vs peers</button>
     <button data-tab="compare" aria-pressed="false">Side by side</button>
@@ -59,6 +60,39 @@
     <p class="bx-note">Backing is my reading of public sources, not something the filings report. It shows the current owner, which can differ from the owner when the year-end 2025 portfolio was built. The About the data page lists every tag with its confidence and source.</p>
   </section>
 
+  <section class="bx-page" id="ratings" data-page="ratings" hidden>
+    <div class="bx-card">
+      <div class="bx-controls">
+        <label class="bx-field">Sector
+          <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
+        <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
+        <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
+      </div>
+      <p class="bx-note">BSCR ratings run from 0 (government) to 8 (lowest); 5 to 8 is below investment grade. Shares are of the chosen sector's invested assets.</p>
+    </div>
+    <div class="bx-card" id="r-backing-card">
+        <h2>Rating split by backing</h2>
+        <p class="bx-note">Weighted by dollars across legal entities with at least <span data-draw="minsize">—</span> invested, so the largest companies dominate each bar.</p>
+        <div class="bx-chart" data-draw="r-bars" data-source="peers ratings"></div>
+        <div class="bx-legend" data-draw="r-legend"></div>
+      <h2 class="bx-sub">The same split in numbers</h2>
+      <p class="bx-note">Amount is the sector total for the group. Companies counts those holding anything in the sector.</p>
+      <div class="bx-wide"><table class="bx-table" data-draw="r-backing" data-source="peers ratings"></table></div>
+    </div>
+    <div class="bx-card" id="r-companies">
+      <h2>Rating split by company</h2>
+      <div class="bx-controls">
+        <label class="bx-field">View
+          <select class="dash-select" data-state="level"><option value="entity">Legal entities</option><option value="group">Groups</option></select></label>
+        <label class="bx-field">Backing
+          <select class="dash-select" data-state="backing"><option value="all">All</option><option value="PE / alternative">PE / alternative</option><option value="Hybrid">Hybrid (insurer + alternative)</option><option value="alt+hybrid">PE / alternative + hybrid</option><option value="Traditional insurer">Traditional insurer</option><option value="Bank / other">Bank / other</option><option value="Unknown">Unknown</option></select></label>
+        <label class="bx-check"><input type="checkbox" data-flag="min" checked> Hide under <span data-draw="minsize">—</span></label>
+      </div>
+      <p class="bx-note">Click a column to sort, or a legal entity to see it against its peers. Companies with nothing in the sector are left out. The last row is the median of what is shown.</p>
+      <div class="bx-scroll"><table class="bx-table" data-draw="r-league" data-source="peers ratings" data-row-key="unit_id"></table></div>
+    </div>
+  </section>
+
   <section class="bx-page" id="companies" data-page="companies" hidden>
     <div class="bx-card">
       <div class="bx-controls">
@@ -76,7 +110,7 @@
           <select class="dash-select" id="f-view" data-state="view"><option value="Overview">Overview</option><option value="Allocation">Allocation</option><option value="Credit">Credit</option><option value="Liquidity">Liquidity and duration</option><option value="Concentration">Concentration</option><option value="Mortgages">Mortgages</option></select></label>
         <label class="bx-field">Search
           <input type="search" id="f-search" placeholder="Company name" aria-label="Search company name"></label>
-        <label class="bx-check"><input type="checkbox" id="f-min" checked> Hide under <span data-draw="minsize">—</span></label>
+        <label class="bx-check"><input type="checkbox" id="f-min" data-flag="min" checked> Hide under <span data-draw="minsize">—</span></label>
         <span class="bx-count"><span data-draw="shown" data-source="peers">—</span> shown</span>
       </div>
     </div>
@@ -122,6 +156,19 @@
         <p class="bx-note">The ten largest names in the filing. Share is of invested assets.</p>
         <div class="bx-wide"><table class="bx-table" data-draw="co-issuers" data-source="top_issuers" data-row-key="unit_id,label"></table></div>
       </div>
+    </div>
+    <div class="bx-card" id="co-ratings">
+      <h2>BSCR rating split</h2>
+      <div class="bx-controls">
+        <label class="bx-field">Sector
+          <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
+        <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
+        <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
+      </div>
+      <p class="bx-note">Share of the chosen sector in each rating. Peers are the same set as above; their bar is weighted by dollars, the table column is the peer median or mean company, which need not add up to 100%.</p>
+      <div class="bx-chart bx-chart-short" data-draw="co-rbars" data-source="peers ratings"></div>
+      <div class="bx-legend" data-draw="r-legend"></div>
+      <div class="bx-wide"><table class="bx-table" data-draw="co-rtable" data-source="peers ratings"></table></div>
     </div>
   </section>
 

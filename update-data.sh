@@ -4,5 +4,5 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 src="$here/../bma-peer-compare/share"
-cp "$src/peers.json" "$src/top_issuers.json" "$here/site/data/"
-echo "Copied peers.json and top_issuers.json into site/data/"
+cp "$src/peers.json" "$src/top_issuers.json" "$src/ratings.json" "$here/site/data/"
+echo "Copied peers.json, top_issuers.json and ratings.json into site/data/"

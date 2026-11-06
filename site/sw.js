@@ -1,8 +1,8 @@
 'use strict';
 // Offline copy of the site. Files come from the network first (up to 4s) so new data shows
 // up straight away; the saved copy is only the fallback when offline.
-const CACHE = 'site-v1';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'icon.svg', 'vendor/d3.min.js', 'data/peers.json', 'data/top_issuers.json'];
+const CACHE = 'site-v2';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'icon.svg', 'vendor/d3.min.js', 'data/peers.json', 'data/top_issuers.json', 'data/ratings.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
