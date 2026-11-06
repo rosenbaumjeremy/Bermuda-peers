@@ -65,11 +65,24 @@
       <div class="bx-controls">
         <label class="bx-field">Sector
           <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
+        <label class="bx-field">Sub-sector
+          <select class="dash-select" data-state="rSub" data-draw="r-sub"></select></label>
         <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
         <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
         <label class="bx-check"><input type="checkbox" data-flag="rOther" checked> Include rated Other Assets</label>
       </div>
       <p class="bx-note">BSCR ratings run from 0 (government) to 8 (lowest); 5 to 8 is below investment grade. The split covers the Bonds and Loans and Structured Assets schedules, plus Other Assets items that carry a BSCR rating (untick to leave those out). Mortgages, derivatives, separate accounts and unrated Other Assets are not included. Shares are of the chosen sector within that scope.</p>
+    </div>
+    <div class="bx-card" id="r-drill-card">
+      <h2>Drill down by sector</h2>
+      <div class="bx-crumbs" data-draw="r-crumbs"></div>
+      <div class="bx-controls">
+        <label class="bx-field">Backing
+          <select class="dash-select" data-state="backing"><option value="all">All</option><option value="PE / alternative">PE / alternative</option><option value="Hybrid">Hybrid (insurer + alternative)</option><option value="alt+hybrid">PE / alternative + hybrid</option><option value="Traditional insurer">Traditional insurer</option><option value="Bank / other">Bank / other</option><option value="Unknown">Unknown</option></select></label>
+      </div>
+      <p class="bx-note">Click a sector to see its sub-sectors, and a sub-sector to make it the choice for the rest of this page (click it again to go back to the whole sector). Weighted by dollars across legal entities with at least <span data-draw="minsize">—</span> invested.</p>
+      <div class="bx-chart bx-chart-short" data-draw="r-drill-bars" data-source="peers ratings"></div>
+      <div class="bx-wide"><table class="bx-table" data-draw="r-drill" data-source="peers ratings"></table></div>
     </div>
     <div class="bx-card" id="r-backing-card">
         <h2>Rating split by backing</h2>
@@ -163,6 +176,8 @@
       <div class="bx-controls">
         <label class="bx-field">Sector
           <select class="dash-select" data-state="rSector" data-draw="r-sector"></select></label>
+        <label class="bx-field">Sub-sector
+          <select class="dash-select" data-state="rSub" data-draw="r-sub"></select></label>
         <label class="bx-check"><input type="checkbox" data-flag="r03"> Combine 0–3</label>
         <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
         <label class="bx-check"><input type="checkbox" data-flag="rOther" checked> Include rated Other Assets</label>

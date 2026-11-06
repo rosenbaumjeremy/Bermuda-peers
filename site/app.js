@@ -72,7 +72,7 @@ const STRIP_ROWS = [['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq'
 const SBS_ROWS = [['Size', ['invested', 'net_res', 'cover']], ['Asset mix', ['gov', 'corp', 'priv', 'struct', 'mort', 'eq', 'cash', 'other']], ['Credit', ['below_ig', 'unrated', 'w_rating', 'yield']], ['Liquidity and duration', ['illiquid', 'lvl3', 'asset_dur', 'res_dur', 'gap', 'deriv']], ['Concentration', ['top10', 'affil', 'non_usd', 'non_us', 'trust']], ['Mortgages', ['cml_ltv', 'cml_office', 'cml_delinq', 'rml_delinq']]];
 const SIZE = { all: [0, Infinity], lt1: [0, 1e9], '1-5': [1e9, 5e9], '5-25': [5e9, 25e9], '25+': [25e9, Infinity] };
 
-const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null, rSector: 'all', r03: false, r58: false, rOther: true, rSort: 'amt', rDir: -1 };
+const S = { tab: 'backing', level: 'entity', backing: 'all', cls: 'all', basis: 'all', size: 'all', view: 'Overview', q: '', min: true, sort: 'invested', dir: -1, strip: 'illiquid', mapX: 'below_ig', mapY: 'yield', company: null, peerSet: 'same', stat: 'median', sbs: null, rSector: 'all', rSub: 'all', r03: false, r58: false, rOther: true, rSort: 'amt', rDir: -1 };
 
 // BSCR rating split. data/ratings.json holds, per unit and asset group, dollars in ratings 0..8 and Unrated.
 const RATING_LABELS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', 'Unrated'];
@@ -87,24 +87,38 @@ function ratingBuckets() {
 }
 const ratingsData = () => { const d = dash.data('ratings'); return d.status === 'ok' ? d.data : null; };
 // Dollars by rating (10 numbers) for one unit in the chosen sector, or null if it holds nothing there.
-function ratingVec(uid) {
+// Keys look like "corp|Corporate - financial"; an "oa:" prefix marks rated items from Other Assets.
+const parseKey = (k) => { const oa = k.startsWith('oa:'); const [g, s] = (oa ? k.slice(3) : k).split('|'); return { oa, g, s }; };
+function ratingVec(uid, sector = S.rSector, sub = S.rSub) {
   const r = ratingsData()?.[uid];
   if (!r) return null;
-  // keys are asset groups; "oa:<group>" holds the rated items from Other Assets
-  const groups = Object.entries(r).filter(([k]) => (S.rOther || !k.startsWith('oa:'))
-    && (S.rSector === 'all' || k.replace(/^oa:/, '') === S.rSector)).map(([, v]) => v);
-  if (!groups.length) return null;
-  const v = RATING_LABELS.map((_, i) => groups.reduce((s, g) => s + g[i], 0));
-  return v.reduce((s, x) => s + x, 0) > 0 ? v : null;
+  let v = null;
+  for (const [k, x] of Object.entries(r)) {
+    const p = parseKey(k);
+    if ((p.oa && !S.rOther) || (sector !== 'all' && (p.g !== sector || (sub !== 'all' && p.s !== sub)))) continue;
+    v = v ? addVec(v, x) : [...x];
+  }
+  return v && v.reduce((s, x) => s + x, 0) > 0 ? v : null;
+}
+// Sub-sectors present within one asset group.
+function subSectors(g) {
+  const seen = new Set();
+  for (const u of Object.values(ratingsData() || {})) for (const k of Object.keys(u)) { const p = parseKey(k); if (p.g === g && (S.rOther || !p.oa)) seen.add(p.s); }
+  return [...seen].sort();
+}
+function setRating(sector, sub) {
+  S.rSector = sector; S.rSub = sub;
+  RATING_DRAWS.forEach((n) => dash.draw(n));
 }
 const addVec = (a, b) => a.map((x, i) => x + b[i]);
 // Shares by bucket from a 10-number dollar vector.
 const ratingShares = (v, buckets) => { const t = v.reduce((s, x) => s + x, 0); return buckets.map((b) => (t > 0 ? b.idx.reduce((s, i) => s + v[i], 0) / t : null)); };
-const sectorLabel = () => (S.rSector === 'all' ? 'All rated schedules' : GROUPS.find(([k]) => k === S.rSector)?.[1] || S.rSector);
+const groupLabel = (g) => GROUPS.find(([k]) => k === g)?.[1] || g;
+const sectorLabel = () => (S.rSector === 'all' ? 'All rated schedules' : S.rSub !== 'all' ? S.rSub : groupLabel(S.rSector));
 // Asset groups that appear in the rating data (mortgage schedules are not part of it).
 const ratingGroups = () => {
   const seen = new Set();
-  for (const u of Object.values(ratingsData() || {})) for (const k of Object.keys(u)) seen.add(k.replace(/^oa:/, ''));
+  for (const u of Object.values(ratingsData() || {})) for (const k of Object.keys(u)) seen.add(parseKey(k).g);
   return GROUPS.filter(([k]) => seen.has(k));
 };
 
@@ -198,19 +212,20 @@ function openTab(name) {
   for (const b of document.querySelectorAll('[data-tab]')) b.setAttribute('aria-pressed', String(b.dataset.tab === name));
   dash.setLink(name);
   // charts size themselves to their box, which has no width while its tab is hidden
-  ['mix', 'strip', 'map', 'r-bars', 'co-rbars'].forEach((n) => dash.draw(n));
+  ['mix', 'strip', 'map', 'r-bars', 'r-drill-bars', 'co-rbars'].forEach((n) => dash.draw(n));
 }
 function openCompany(id) {
   S.company = id;
   openTab('company');
   for (const n of ['co-pick', 'co-head', 'co-strip', 'co-issuers', 'co-rbars', 'co-rtable']) dash.draw(n);
 }
-const RATING_DRAWS = ['r-sector', 'r-legend', 'r-bars', 'r-backing', 'r-league', 'co-rbars', 'co-rtable'];
+const RATING_DRAWS = ['r-sector', 'r-sub', 'r-drill', 'r-drill-bars', 'r-legend', 'r-bars', 'r-backing', 'r-league', 'co-rbars', 'co-rtable'];
 const REDRAW = ['league', 'map', 'shown', 'strip', 'co-strip', 'sbs', ...RATING_DRAWS];
 for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => openTab(b.dataset.tab));
 for (const c of document.querySelectorAll('[data-state]')) c.addEventListener('change', () => {
   const k = c.dataset.state;
   S[k] = c.value;
+  if (k === 'rSector') S.rSub = 'all'; // a new sector starts with all of its sub-sectors
   for (const o of document.querySelectorAll(`[data-state="${k}"]`)) if (o !== c) o.value = c.value;
   REDRAW.forEach((n) => dash.draw(n));
 });
@@ -593,6 +608,66 @@ dash.draw('r-sector', (sel) => {
   sel.replaceChildren(new Option('All rated schedules', 'all'), ...ratingGroups().map(([k, label]) => new Option(label, k)));
   sel.value = S.rSector;
 });
+dash.draw('r-sub', (sel) => {
+  const subs = S.rSector === 'all' ? [] : subSectors(S.rSector);
+  sel.replaceChildren(new Option(S.rSector === 'all' ? 'Pick a sector first' : `All ${groupLabel(S.rSector).toLowerCase()}`, 'all'), ...subs.map((s) => new Option(s, s)));
+  sel.disabled = S.rSector === 'all';
+  if (!subs.includes(S.rSub)) S.rSub = 'all';
+  sel.value = S.rSub;
+});
+
+// Drill-down: all sectors, then the sub-sectors of the chosen one. Weighted by dollars across
+// legal entities with at least MIN_SIZE invested that match the Backing filter.
+function drillRows() {
+  const rows = peers();
+  if (!rows || !ratingsData()) return null;
+  const base = rows.filter((u) => u.level === 'entity' && (u.invested || 0) >= MIN_SIZE
+    && (S.backing === 'alt+hybrid' ? u.backing.includes('PE / alternative') || u.backing.includes('Hybrid') : S.backing === 'all' || u.backing.includes(S.backing)));
+  const items = S.rSector === 'all'
+    ? ratingGroups().map(([k, label]) => ({ label, sector: k, sub: 'all' }))
+    : subSectors(S.rSector).map((s) => ({ label: s, sector: S.rSector, sub: s }));
+  return items.map((it) => {
+    let v = RATING_LABELS.map(() => 0), n = 0;
+    for (const u of base) { const x = ratingVec(u.unit_id, it.sector, it.sub); if (x) { v = addVec(v, x); n += 1; } }
+    return { ...it, v, n, amt: v.reduce((s, x) => s + x, 0) };
+  }).filter((r) => r.n).sort((a, b) => b.amt - a.amt);
+}
+
+dash.draw('r-crumbs', (box) => {
+  const crumb = (text, fn) => { const b = el('button', { type: 'button', class: 'bx-crumb' }, text); b.addEventListener('click', fn); return b; };
+  const kids = [crumb('All rated schedules', () => setRating('all', 'all'))];
+  if (S.rSector !== 'all') kids.push(' › ', crumb(groupLabel(S.rSector), () => setRating(S.rSector, 'all')));
+  if (S.rSub !== 'all') kids.push(' › ', el('b', null, S.rSub));
+  box.replaceChildren(...kids);
+});
+
+dash.draw('r-drill-bars', (box) => {
+  const rows = drillRows();
+  if (!rows) { box.replaceChildren(); return; }
+  const buckets = ratingBuckets();
+  ratingBars(box, rows.map((r) => ({ label: r.label, sub: `${r.n} companies, ${fUsd(r.amt)}`, shares: ratingShares(r.v, buckets) })), buckets);
+});
+
+dash.draw('r-drill', (t) => {
+  dash.draw('r-crumbs');
+  const rows = drillRows();
+  if (!rows) { t.replaceChildren(); return; }
+  const buckets = ratingBuckets();
+  const total = rows.reduce((s, r) => addVec(s, r.v), RATING_LABELS.map(() => 0));
+  const line = (r, cls, label, n, v, amt) => el('tr', { class: cls }, el('td', { class: 'nm' }, label), el('td', { class: 'n' }, n), el('td', { class: 'n' }, fUsd(amt)),
+    ...ratingShares(v, buckets).map((s) => el('td', { class: 'n' }, fPct(s))));
+  const body = rows.map((r) => {
+    const picked = S.rSub !== 'all' && r.sub === S.rSub;
+    const tr = line(r, picked ? 'go sel' : 'go', r.label, fInt(r.n), r.v, r.amt);
+    tr.addEventListener('click', () => setRating(r.sector, S.rSector === 'all' ? 'all' : (picked ? 'all' : r.sub)));
+    return tr;
+  });
+  body.push(line(null, 'sum', S.rSector === 'all' ? 'All rated schedules' : `All ${groupLabel(S.rSector).toLowerCase()}`, '', total, total.reduce((s, x) => s + x, 0)));
+  t.replaceChildren(
+    el('thead', null, el('tr', null, el('th', null, S.rSector === 'all' ? 'Sector' : 'Sub-sector'), el('th', { class: 'n' }, 'Companies'), el('th', { class: 'n' }, 'Amount'), ...buckets.map((b) => el('th', { class: 'n' }, b.label)))),
+    el('tbody', null, ...body),
+  );
+});
 dash.draw('r-legend', (n) => {
   n.replaceChildren(...ratingBuckets().map((b) => el('span', null, el('i', { style: `background:${b.color}` }), b.label)));
 });
@@ -710,7 +785,7 @@ window.addEventListener('resize', () => {
   if (window.innerWidth === lastWidth) return;
   lastWidth = window.innerWidth;
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => ['mix', 'strip', 'map', 'r-bars', 'co-rbars'].forEach((n) => dash.draw(n)), 150);
+  resizeTimer = setTimeout(() => ['mix', 'strip', 'map', 'r-bars', 'r-drill-bars', 'co-rbars'].forEach((n) => dash.draw(n)), 150);
 });
 
 dash.drawAll();

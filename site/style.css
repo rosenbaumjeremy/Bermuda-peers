@@ -140,3 +140,7 @@ a { color: var(--c1); }
 .bx-chart.bx-chart-short { min-height: 0; }
 /* grid and flex children may shrink below their content, so wide tables scroll inside their box on phones */
 .bx-card > *, .bx-field > .dash-select { min-width: 0; }
+.bx-crumbs { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.bx-crumb { all: unset; color: var(--c1); cursor: pointer; text-decoration: underline; }
+.bx-crumb:focus-visible { outline: 2px solid var(--color-fg); }
+.bx-table tr.sel td { background: var(--color-bg); font-weight: var(--cds-font-weight-medium); }
