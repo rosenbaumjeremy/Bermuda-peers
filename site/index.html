@@ -86,6 +86,20 @@
       <div class="bx-chart bx-chart-short" data-draw="r-drill-bars" data-source="peers ratings"></div>
       <div class="bx-wide"><table class="bx-table" data-draw="r-drill" data-source="peers ratings"></table></div>
     </div>
+    <div class="bx-card" id="r-compare-card">
+      <h2>One insurer against its group and peers</h2>
+      <div class="bx-controls">
+        <label class="bx-field">Insurer
+          <select class="dash-select" data-draw="r-co-pick" data-source="peers"></select></label>
+        <label class="bx-field">Compare with
+          <select class="dash-select" data-state="peerSet"><option value="same">Same backing and all companies</option><option value="All">All companies only</option></select></label>
+        <label class="bx-field">Peer average
+          <select class="dash-select" data-state="stat"><option value="median">Median</option><option value="mean">Mean</option></select></label>
+      </div>
+      <p class="bx-note">Follows the sector, sub-sector and asset type chosen above. Rows: the insurer, its company group where it has one, its backing peers and all companies. Peer rows add up dollars across legal entities with at least <span data-draw="minsize">—</span> invested; the median or mean company row takes each company's own shares, so it need not add up to 100%.</p>
+      <div class="bx-chart bx-chart-short" data-draw="co-rbars" data-source="peers ratings"></div>
+      <div class="bx-wide"><table class="bx-table" data-draw="co-rtable" data-source="peers ratings"></table></div>
+    </div>
     <div class="bx-card" id="r-backing-card">
         <h2>Rating split by backing</h2>
         <p class="bx-note">Weighted by dollars across legal entities with at least <span data-draw="minsize">—</span> invested, so the largest companies dominate each bar.</p>
@@ -186,7 +200,7 @@
         <label class="bx-check"><input type="checkbox" data-flag="r58"> Combine 5–8</label>
         <label class="bx-check"><input type="checkbox" data-flag="rOther" checked> Include rated Other Assets</label>
       </div>
-      <p class="bx-note">Bonds and Loans and Structured Assets, plus rated Other Assets if ticked; mortgages, derivatives and separate accounts are left out. Share of the chosen sector in each rating. Peers are the same set as above; their bar is weighted by dollars, the table column is the peer median or mean company, which need not add up to 100%.</p>
+      <p class="bx-note">Bonds and Loans and Structured Assets, plus rated Other Assets if ticked. The company is set against its company group (where it has one), its backing peers and all companies, chosen with Compare with above. Peer rows add up dollars across legal entities with at least $100M invested; the median or mean company row takes each company's own shares, so it need not add up to 100%.</p>
       <div class="bx-chart bx-chart-short" data-draw="co-rbars" data-source="peers ratings"></div>
       <div class="bx-legend" data-draw="r-legend"></div>
       <div class="bx-wide"><table class="bx-table" data-draw="co-rtable" data-source="peers ratings"></table></div>

@@ -144,3 +144,4 @@ a { color: var(--c1); }
 .bx-crumb { all: unset; color: var(--c1); cursor: pointer; text-decoration: underline; }
 .bx-crumb:focus-visible { outline: 2px solid var(--color-fg); }
 .bx-table tr.sel td { background: var(--color-bg); font-weight: var(--cds-font-weight-medium); }
+.bx-table tr.avg td { color: var(--color-fg-muted); font-style: italic; }

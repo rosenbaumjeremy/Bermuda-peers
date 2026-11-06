@@ -223,9 +223,9 @@ function openTab(name) {
 function openCompany(id) {
   S.company = id;
   openTab('company');
-  for (const n of ['co-pick', 'co-head', 'co-strip', 'co-issuers', 'co-rbars', 'co-rtable']) dash.draw(n);
+  for (const n of ['co-pick', 'r-co-pick', 'co-head', 'co-strip', 'co-issuers', 'co-rbars', 'co-rtable']) dash.draw(n);
 }
-const RATING_DRAWS = ['r-sector', 'r-sub', 'r-type', 'r-drill', 'r-drill-bars', 'r-legend', 'r-bars', 'r-backing', 'r-league', 'co-rbars', 'co-rtable'];
+const RATING_DRAWS = ['r-sector', 'r-sub', 'r-type', 'r-co-pick', 'r-drill', 'r-drill-bars', 'r-legend', 'r-bars', 'r-backing', 'r-league', 'co-rbars', 'co-rtable'];
 const REDRAW = ['league', 'map', 'shown', 'strip', 'co-strip', 'sbs', ...RATING_DRAWS];
 for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => openTab(b.dataset.tab));
 for (const c of document.querySelectorAll('[data-state]')) c.addEventListener('change', () => {
@@ -760,41 +760,71 @@ dash.draw('r-league', (t) => {
   );
 });
 
-// Company page: the company's split against its peer set (same backing or all).
-function companyRatingPeers(c) {
-  const set = S.peerSet === 'same' ? c.backing : 'All';
-  const peersList = (peers() || []).filter((u) => u.level === 'entity' && (u.invested || 0) >= MIN_SIZE && (set === 'All' || u.backing === set));
-  return { set, vecs: peersList.map((u) => ratingVec(u.unit_id)).filter(Boolean) };
+// One insurer against its company group, its backing peers and all companies. Peer and
+// all-company rows add up dollars across legal entities with at least MIN_SIZE invested (the
+// insurer included if it qualifies); the median or mean rows take each company's shares.
+function ratingCompare(c) {
+  const buckets = ratingBuckets();
+  const ents = (peers() || []).filter((u) => u.level === 'entity' && (u.invested || 0) >= MIN_SIZE);
+  const pool = (list) => {
+    const vecs = list.map((u) => ratingVec(u.unit_id)).filter(Boolean);
+    return vecs.length ? { v: vecs.reduce(addVec), n: vecs.length, shares: vecs.map((x) => ratingShares(x, buckets)) } : null;
+  };
+  const rows = [];
+  const mine = ratingVec(c.unit_id);
+  rows.push({ kind: 'company', label: c.name, n: mine ? 1 : 0, v: mine });
+  const grp = c.group ? (peers() || []).find((u) => u.unit_id === c.group) : null;
+  if (grp) {
+    const gv = ratingVec(grp.unit_id);
+    rows.push({ kind: 'group', label: grp.name, n: gv ? (peers() || []).filter((u) => u.group === grp.unit_id && ratingVec(u.unit_id)).length : 0, v: gv });
+  }
+  const sets = S.peerSet === 'same' && c.backing !== 'All' ? [c.backing, 'All'] : ['All'];
+  const stat = S.stat === 'mean' ? 'mean' : 'median';
+  const avg = (a) => (stat === 'mean' ? (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null) : median(a));
+  for (const set of sets) {
+    const pl = pool(set === 'All' ? ents : ents.filter((u) => u.backing === set));
+    const name = set === 'All' ? 'All companies' : `${set} peers`;
+    rows.push({ kind: 'peers', label: name, n: pl ? pl.n : 0, v: pl ? pl.v : null });
+    if (pl) rows.push({ kind: 'avg', label: `${stat === 'mean' ? 'Mean' : 'Median'} company, ${set === 'All' ? 'all companies' : set}`, n: pl.n, v: null, avgShares: buckets.map((_, i) => avg(pl.shares.map((x) => x[i]).filter((x) => x != null))) });
+  }
+  return { buckets, rows };
 }
+
+dash.draw('r-co-pick', (sel) => {
+  const list = entities();
+  sel.replaceChildren(...[...list].sort((a, b) => a.name.localeCompare(b.name)).map((u) => new Option(u.name, u.unit_id)));
+  const c = currentCompany();
+  if (c) sel.value = c.unit_id;
+  sel.onchange = () => {
+    S.company = sel.value;
+    ['r-co-pick', 'co-pick', 'co-head', 'co-strip', 'co-issuers', 'co-rbars', 'co-rtable'].forEach((n) => dash.draw(n));
+  };
+});
 
 dash.draw('co-rbars', (box) => {
   const c = currentCompany();
   if (!c || !ratingsData()) { box.replaceChildren(); return; }
-  const buckets = ratingBuckets(), mine = ratingVec(c.unit_id), { set, vecs } = companyRatingPeers(c);
-  const rows = [];
-  if (mine) rows.push({ label: c.name, sub: fUsd(mine.reduce((s, x) => s + x, 0)), shares: ratingShares(mine, buckets) });
-  if (vecs.length) rows.push({ label: set === 'All' ? 'All peers' : `${set} peers`, sub: `${vecs.length} companies, weighted by dollars`, shares: ratingShares(vecs.reduce(addVec), buckets) });
-  ratingBars(box, rows, buckets);
-  if (!mine) box.prepend(el('p', { class: 'bx-note' }, `${c.name} holds nothing in ${sectorLabel().toLowerCase()}.`));
+  const { buckets, rows } = ratingCompare(c);
+  const sub = (r) => (r.kind === 'company' ? fUsd(r.v.reduce((x, y) => x + y, 0)) : `${r.n} companies, ${fUsd(r.v.reduce((x, y) => x + y, 0))}`);
+  ratingBars(box, rows.filter((r) => r.v).map((r) => ({ label: r.label, sub: sub(r), shares: ratingShares(r.v, buckets) })), buckets);
+  if (!rows[0].v) box.prepend(el('p', { class: 'bx-note' }, `${c.name} holds nothing in ${sectorLabel()}.`));
 });
 
 dash.draw('co-rtable', (t) => {
   const c = currentCompany();
   if (!c || !ratingsData()) { t.replaceChildren(); return; }
-  const buckets = ratingBuckets(), mine = ratingVec(c.unit_id), { set, vecs } = companyRatingPeers(c);
-  const stat = S.stat === 'mean' ? 'mean' : 'median';
-  const mean = (a) => { const v = a.filter((x) => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
-  const peerShares = vecs.map((v) => ratingShares(v, buckets));
-  const mineSh = mine ? ratingShares(mine, buckets) : buckets.map(() => null);
-  const mineAmt = mine;
-  const statLabel = stat === 'mean' ? 'Mean' : 'Median';
+  const { buckets, rows } = ratingCompare(c);
+  const body = rows.map((r) => {
+    const sh = r.v ? ratingShares(r.v, buckets) : r.avgShares || buckets.map(() => null);
+    return el('tr', { class: r.kind === 'company' ? 'sel' : r.kind === 'avg' ? 'avg' : null },
+      el('td', { class: 'nm' }, r.label),
+      el('td', { class: 'n' }, r.kind === 'company' ? '' : fInt(r.n)),
+      el('td', { class: 'n' }, r.v ? fUsd(r.v.reduce((x, y) => x + y, 0)) : '–'),
+      ...sh.map((x) => el('td', { class: 'n' }, fPct(x))));
+  });
   t.replaceChildren(
-    el('thead', null, el('tr', null, el('th', null, 'Rating'), el('th', { class: 'n' }, 'Amount'), el('th', { class: 'n' }, 'Company'), el('th', { class: 'n' }, set === 'All' ? `${statLabel}, all` : `${statLabel}, ${set}`))),
-    el('tbody', null, ...buckets.map((b, i) => el('tr', null,
-      el('td', null, el('i', { class: 'bx-swatch', style: `background:${b.color}` }), b.label),
-      el('td', { class: 'n' }, mineAmt ? fUsd(b.idx.reduce((s, j) => s + mineAmt[j], 0)) : '–'),
-      el('td', { class: 'n' }, fPct(mineSh[i])),
-      el('td', { class: 'n' }, fPct((stat === 'mean' ? mean : median)(peerShares.map((p) => p[i]))))))),
+    el('thead', null, el('tr', null, el('th', null, sectorLabel()), el('th', { class: 'n' }, 'Companies'), el('th', { class: 'n' }, 'Amount'), ...buckets.map((b) => el('th', { class: 'n' }, b.label)))),
+    el('tbody', null, ...body),
   );
 });
 
